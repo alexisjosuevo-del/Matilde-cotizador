@@ -506,7 +506,7 @@ exportWppBtn.addEventListener('click', () => {
 });
 
 // Lógica de API GROQ
-const GROQ_API_KEY = "";
+const GROQ_API_KEY = "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";
 
 btnGenerateAI.addEventListener('click', async () => {
     const prompt = aiPromptInput.value.trim();
