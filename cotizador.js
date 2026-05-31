@@ -36,6 +36,7 @@ const aiThinkingStatus = document.getElementById('aiThinkingStatus');
 let catalogData = []; 
 let shoppingCart = []; 
 let currentCurrency = 'MXN';
+let selectedCategory = 'Todas';
 const EXCHANGE_RATE = 15.0; // Factor de conversión a USD
 
 // Precargar Logo PDF
@@ -51,91 +52,90 @@ document.addEventListener('DOMContentLoaded', () => {
     setupModeSelection();
 });
 
+// DOM Elements para Tabs
+const tabServicios = document.getElementById('tabServicios');
+const tabPaquetes = document.getElementById('tabPaquetes');
+let currentTab = 'servicio';
+
 // Auto-Load Excel File
 async function loadLocalExcel() {
     try {
-        const response = await fetch('Catologo de Servicios Matilde360 (1).xlsx');
+        const response = await fetch('Matilde360.xlsx');
         if (!response.ok) throw new Error("No se pudo cargar el archivo");
         
         const arrayBuffer = await response.arrayBuffer();
         const data = new Uint8Array(arrayBuffer);
         const workbook = XLSX.read(data, {type: 'array'});
         
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        
-        // Usar header:1 nos asegura leer las columnas estrictamente como un arreglo (Array) por cada fila
-        const jsonArr = XLSX.utils.sheet_to_json(worksheet, {header: 1, raw: false});
-        
-        if (jsonArr.length < 2) {
-            alert("El archivo base está vacío o no tiene suficientes filas.");
+        let allData = [];
+
+        // Leer hoja de Servicios (Catálogo)
+        const serviciosSheet = workbook.Sheets["Catálogo"] || workbook.Sheets["Servicios"] || workbook.Sheets["Catalogo"];
+        if (serviciosSheet) {
+            const serviciosJson = XLSX.utils.sheet_to_json(serviciosSheet);
+            serviciosJson.forEach((row, idx) => {
+                if(row["Servicio"]) {
+                    let pImpl = row[" Precio Implementación MXN "] || row["Precio Implementación MXN"] || row["Precio Implementación"] || 0;
+                    let pMens = row[" Precio Mensualidad MXN "] || row["Precio Mensualidad MXN"] || row["Precio Mensualidad"] || 0;
+                    if(typeof pImpl === 'string') pImpl = parseFloat(pImpl.replace(/[$,\s]/g, '')) || 0;
+                    if(typeof pMens === 'string') pMens = parseFloat(pMens.replace(/[$,\s]/g, '')) || 0;
+                    
+                    allData.push({
+                        id: `SV-${idx}`,
+                        name: row["Servicio"],
+                        description: row["Descripción"] || "",
+                        category: row["Categoría"] || "",
+                        modality: row["Modalidad"] || "",
+                        priceImpl: pImpl,
+                        priceMens: pMens,
+                        type: 'servicio',
+                        searchString: Object.values(row).join(' ').toLowerCase()
+                    });
+                }
+            });
+        }
+
+        // Leer hoja de Paquetes
+        if (workbook.Sheets["Paquetes"]) {
+            const paquetesJson = XLSX.utils.sheet_to_json(workbook.Sheets["Paquetes"]);
+            paquetesJson.forEach((row, idx) => {
+                if(row["Paquete"]) {
+                    let pImpl = row["Precio Implementación MXN"] || row[" Precio Implementación MXN "] || row["Precio Implementación"] || 0;
+                    let pMens = row["Precio Mensualidad MXN"] || row[" Precio Mensualidad MXN "] || row["Precio Mensualidad"] || 0;
+                    if(typeof pImpl === 'string') pImpl = parseFloat(pImpl.replace(/[$,\s]/g, '')) || 0;
+                    if(typeof pMens === 'string') pMens = parseFloat(pMens.replace(/[$,\s]/g, '')) || 0;
+                    
+                    allData.push({
+                        id: `PK-${idx}`,
+                        name: row["Paquete"],
+                        description: row["Servicios Incluidos"] || "",
+                        category: "Paquete",
+                        modality: "Mensualidad/Implementación",
+                        priceImpl: pImpl,
+                        priceMens: pMens,
+                        type: 'paquete',
+                        searchString: Object.values(row).join(' ').toLowerCase()
+                    });
+                }
+            });
+        }
+
+        if (allData.length === 0) {
+            alert("El archivo base está vacío o no tiene el formato esperado.");
             aiModal.classList.add('hidden');
             return;
         }
-        
-        // Saltar la cabecera
-        const dataRows = jsonArr.slice(1);
+
+        catalogData = allData;
         
         // Give UI time to breathe
-        setTimeout(() => processDataWithAI(dataRows), 1200);
+        setTimeout(() => finishLoading(), 1200);
         
     } catch(error) {
         console.error(error);
-        alert("Error leyendo el archivo excel predefinido. Probablemente tengas que abrirlo a través de un servidor (Live Server) por las políticas CORS de los navegadores locales.");
+        alert("Error leyendo el archivo excel predefinido. Asegúrate de tener 'Matilde360.xlsx' en la carpeta.");
         aiModal.classList.add('hidden');
     }
-}
-
-// "AI" Data Structure
-function processDataWithAI(rows) {
-    let structuredData = [];
-    
-    // El catálogo tiene secciones. Buscamos Paquetes y Servicios Individuales.
-    let currentSection = "";
-    
-    rows.forEach((row, index) => {
-        if (!row || row.length === 0) return;
-        
-        const firstCol = String(row[0] || '').trim();
-        const secondCol = String(row[1] || '').trim();
-        
-        // Detectar Secciones
-        if (firstCol.includes("PAQUETES")) {
-            currentSection = "PAQUETE";
-            return;
-        }
-        if (firstCol.includes("SERVICIOS INDIVIDUALES")) {
-            currentSection = "SERVICIO";
-            return;
-        }
-        
-        // Saltar encabezados de tabla (tienen '#' en la primera columna)
-        if (firstCol === "#") return;
-        
-        // Procesar Filas de Datos
-        if (currentSection === "PAQUETE" && secondCol && row[2]) {
-            structuredData.push({
-                id: `PK-${index}`,
-                name: secondCol,
-                price: parseFloat(String(row[2]).replace(/[$,\s]/g, '')) || 0,
-                description: String(row[6] || ''),
-                category: "Paquete Integral",
-                searchString: row.map(v => String(v)).join(' ').toLowerCase()
-            });
-        } else if (currentSection === "SERVICIO" && secondCol && row[2]) {
-            structuredData.push({
-                id: `SV-${index}`,
-                name: secondCol,
-                price: parseFloat(String(row[2]).replace(/[$,\s]/g, '')) || 0,
-                description: String(row[6] || ''),
-                category: "Servicio Individual",
-                searchString: row.map(v => String(v)).join(' ').toLowerCase()
-            });
-        }
-    });
-
-    catalogData = structuredData;
-    finishLoading();
 }
 
 function generateCyberId(index) {
@@ -149,29 +149,71 @@ function finishLoading() {
     aiModal.classList.add('hidden');
     
     recordCount.innerText = catalogData.length;
+    renderCategoryFilters();
     renderCatalog(catalogData);
+}
+
+// Render Category Filter Chips
+function renderCategoryFilters() {
+    const container = document.getElementById('categoryFilters');
+    if(!container) return;
+    container.innerHTML = '';
+    
+    const tabItems = catalogData.filter(i => i.type === currentTab);
+    const cats = [...new Set(tabItems.map(i => i.category).filter(c => c))];
+    
+    // "Todas" chip
+    const allBtn = document.createElement('button');
+    allBtn.className = 'category-chip' + (selectedCategory === 'Todas' ? ' active' : '');
+    allBtn.textContent = 'Todas';
+    allBtn.onclick = () => { selectedCategory = 'Todas'; renderCategoryFilters(); renderCatalog(catalogData); };
+    container.appendChild(allBtn);
+    
+    cats.forEach(cat => {
+        const btn = document.createElement('button');
+        btn.className = 'category-chip' + (selectedCategory === cat ? ' active' : '');
+        btn.textContent = cat;
+        btn.onclick = () => { selectedCategory = cat; renderCategoryFilters(); renderCatalog(catalogData); };
+        container.appendChild(btn);
+    });
 }
 
 // Render Engine
 function renderCatalog(items) {
     catalogList.innerHTML = '';
     
-    if (items.length === 0) {
-        catalogList.innerHTML = '<div style="color:var(--text-muted); padding:20px;">No se encontraron resultados del Engine.</div>';
+    // Filtrar por tab actual
+    let filteredItems = items.filter(i => i.type === currentTab);
+    
+    // Filtrar por categoría seleccionada
+    if(selectedCategory !== 'Todas') {
+        filteredItems = filteredItems.filter(i => i.category === selectedCategory);
+    }
+    
+    if (filteredItems.length === 0) {
+        catalogList.innerHTML = '<div style="color:var(--text-muted); padding:20px;">No se encontraron resultados.</div>';
         return;
     }
 
     const fragment = document.createDocumentFragment();
     
-    const toRender = items.slice(0, 100); 
+    const toRender = filteredItems.slice(0, 100); 
 
     toRender.forEach(item => {
         const card = document.createElement('div');
         card.className = 'product-card';
+        
+        const hasImpl = item.priceImpl && item.priceImpl > 0;
+        const hasMens = item.priceMens && item.priceMens > 0 && item.priceMens !== '—';
+        
         card.innerHTML = `
             <span class="prod-code">${item.id}</span>
             <div class="prod-name">${item.name}</div>
-            <div class="prod-price">${formatCurrency(item.price)}</div>
+            <div class="prod-desc" style="font-size:0.75rem; color:var(--text-muted); margin: 4px 0;">${item.category} · ${item.modality || ''}</div>
+            <div style="display:flex; justify-content:space-between; margin-bottom: 10px; font-size:0.85rem;">
+                ${hasImpl ? `<div>Impl: <span class="neon-text">${formatCurrency(item.priceImpl)}</span></div>` : ''}
+                ${hasMens ? `<div>Mens: <span class="neon-text">${formatCurrency(item.priceMens)}</span></div>` : ''}
+            </div>
             <button class="add-btn" onclick="addToQuote('${item.id}')">
                 <i class="ph ph-plus-circle"></i> Añadir
             </button>
@@ -206,13 +248,22 @@ aiSearch.addEventListener('input', (e) => {
     }, 300);
 });
 
-window.updatePrice = function(id, newPrice) {
+window.updatePriceImpl = function(id, newPrice) {
     const item = shoppingCart.find(p => p.id === id);
     if(!item) return;
-    
     const price = parseFloat(newPrice);
     if(!isNaN(price)) {
-        item.price = price;
+        item.priceImpl = price;
+        renderCart();
+    }
+}
+
+window.updatePriceMens = function(id, newPrice) {
+    const item = shoppingCart.find(p => p.id === id);
+    if(!item) return;
+    const price = parseFloat(newPrice);
+    if(!isNaN(price)) {
+        item.priceMens = price;
         renderCart();
     }
 }
@@ -232,9 +283,25 @@ window.addToQuote = function(id) {
     if (existing) {
         existing.qty += 1;
     } else {
-        shoppingCart.push({ ...item, qty: 1 });
+        // Determine default selectedPrice based on available prices
+        let defaultPrice = 'impl'; // default
+        const hasImpl = item.priceImpl && item.priceImpl > 0;
+        const hasMens = item.priceMens && item.priceMens > 0 && item.priceMens !== '—';
+        if(hasImpl && !hasMens) defaultPrice = 'impl';
+        else if(!hasImpl && hasMens) defaultPrice = 'mens';
+        else defaultPrice = 'impl';
+        
+        shoppingCart.push({ ...item, qty: 1, selectedPrice: defaultPrice });
     }
     
+    renderCart();
+};
+
+// Toggle price type for cart item
+window.togglePriceType = function(id, type) {
+    const item = shoppingCart.find(p => p.id === id);
+    if(!item) return;
+    item.selectedPrice = type;
     renderCart();
 };
 
@@ -253,6 +320,12 @@ window.updateQty = function(id, delta) {
 window.removeFromQuote = function(id) {
     shoppingCart = shoppingCart.filter(p => p.id !== id);
     renderCart();
+}
+
+// Helper: get active price for a cart item
+function getItemActivePrice(item) {
+    if(item.selectedPrice === 'mens') return item.priceMens || 0;
+    return item.priceImpl || 0;
 }
 
 function renderCart() {
@@ -274,8 +347,12 @@ function renderCart() {
     let subtotal = 0;
 
     shoppingCart.forEach(item => {
-        const itemTotal = item.price * item.qty;
+        const activePrice = getItemActivePrice(item);
+        const itemTotal = activePrice * item.qty;
         subtotal += itemTotal;
+        
+        const hasImpl = item.priceImpl && item.priceImpl > 0;
+        const hasMens = item.priceMens && item.priceMens > 0 && item.priceMens !== '—';
 
         const el = document.createElement('div');
         el.className = 'cart-item';
@@ -284,15 +361,19 @@ function renderCart() {
                 <div class="cart-item-name">${item.name}</div>
                 <button class="remove-btn" onclick="removeFromQuote('${item.id}')"><i class="ph ph-trash"></i></button>
             </div>
+            <div class="price-type-selector" style="display:flex; gap:6px; margin:6px 0;">
+                ${hasImpl ? `<button class="price-type-btn ${item.selectedPrice === 'impl' ? 'active' : ''}" onclick="togglePriceType('${item.id}', 'impl')">
+                    Implementación ${formatCurrency(item.priceImpl)}
+                </button>` : ''}
+                ${hasMens ? `<button class="price-type-btn ${item.selectedPrice === 'mens' ? 'active' : ''}" onclick="togglePriceType('${item.id}', 'mens')">
+                    Mensualidad ${formatCurrency(item.priceMens)}
+                </button>` : ''}
+            </div>
             <div class="cart-item-controls">
                 <div class="qty-controls">
                     <button class="qty-btn" onclick="updateQty('${item.id}', -1)"><i class="ph ph-minus"></i></button>
                     <span>${item.qty}</span>
                     <button class="qty-btn" onclick="updateQty('${item.id}', 1)"><i class="ph ph-plus"></i></button>
-                </div>
-                <div class="price-edit-container">
-                    <label style="font-size: 10px; color: var(--text-muted); display: block;">P. Unitario</label>
-                    <input type="number" value="${item.price}" class="price-input" onchange="updatePrice('${item.id}', this.value)">
                 </div>
                 <div class="cart-item-price">${formatCurrency(itemTotal)}</div>
             </div>
@@ -322,6 +403,28 @@ function formatCurrency(val) {
 }
 
 function setupEventListeners() {
+    tabServicios.addEventListener('click', () => {
+        currentTab = 'servicio';
+        selectedCategory = 'Todas';
+        tabServicios.classList.add('active');
+        tabServicios.style.opacity = '1';
+        tabPaquetes.classList.remove('active');
+        tabPaquetes.style.opacity = '0.6';
+        renderCategoryFilters();
+        renderCatalog(catalogData);
+    });
+    
+    tabPaquetes.addEventListener('click', () => {
+        currentTab = 'paquete';
+        selectedCategory = 'Todas';
+        tabPaquetes.classList.add('active');
+        tabPaquetes.style.opacity = '1';
+        tabServicios.classList.remove('active');
+        tabServicios.style.opacity = '0.6';
+        renderCategoryFilters();
+        renderCatalog(catalogData);
+    });
+
     exportQuoteBtn.addEventListener('click', generatePDF);
     document.getElementById('finalizeQuote').addEventListener('click', () => {
         alert("Cotización procesada exitosamente en el sistema de pruebas.");
@@ -417,16 +520,19 @@ function generatePDF() {
     doc.text(`Elaborado por: ${aName}`, 14, cCompany ? lineY + 30 : lineY + 25);
     doc.text(`Moneda Emitida: ${currentCurrency}`, 140, lineY + 20);
     
-    const tableColumn = ["ID", "Producto", "Cant", "P.Unitario", "Total"];
+    const tableColumn = ["ID", "Producto", "Cant", "Tipo", "Precio Unit.", "Total"];
     const tableRows = [];
 
     shoppingCart.forEach(item => {
-        const itemTotal = item.price * item.qty;
+        const activePrice = getItemActivePrice(item);
+        const itemTotal = activePrice * item.qty;
+        const priceLabel = item.selectedPrice === 'mens' ? 'Mensualidad' : 'Implementación';
         tableRows.push([
             item.id,
             item.name.substring(0, 40),
             item.qty.toString(),
-            formatCurrency(item.price),
+            priceLabel,
+            formatCurrency(activePrice),
             formatCurrency(itemTotal)
         ]);
     });
@@ -453,6 +559,35 @@ function generatePDF() {
     doc.setFontSize(13);
     doc.setTextColor(0, 193, 212);
     doc.text(`TOTAL: ${totalVal.innerText} ${currentCurrency}`, 140, finalY + 24);
+
+    // NUEVA HOJA PARA DESCRIPCIONES
+    doc.addPage();
+    doc.setFontSize(16);
+    doc.setTextColor(43, 56, 143);
+    doc.text("Detalle de Servicios y Paquetes", 14, 20);
+    
+    let descY = 30;
+    doc.setFontSize(11);
+    
+    shoppingCart.forEach(item => {
+        if(descY > 270) {
+            doc.addPage();
+            descY = 20;
+        }
+        
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 0, 0);
+        doc.text(`${item.name} (${item.category})`, 14, descY);
+        descY += 6;
+        
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(100, 100, 100);
+        
+        const splitDesc = doc.splitTextToSize(item.description || "Sin descripción detallada.", 180);
+        doc.text(splitDesc, 14, descY);
+        
+        descY += (splitDesc.length * 6) + 8;
+    });
 
     doc.save(`Matilde_Cotizacion_${cName.replace(/\s+/g,'_')}.pdf`);
 }
@@ -487,7 +622,8 @@ exportWppBtn.addEventListener('click', () => {
     
     let text = `*Cotización Matilde 360*\nCliente: ${cName}\nElaborado por: ${aName}\nMoneda: ${currentCurrency}\n\n`;
     shoppingCart.forEach(i => {
-        const itemTotal = i.price * i.qty;
+        const activePrice = getItemActivePrice(i);
+        const itemTotal = activePrice * i.qty;
         let finalVal = currentCurrency === 'USD' ? (itemTotal / EXCHANGE_RATE) : itemTotal;
         finalVal = Math.ceil(finalVal);
         const priceStr = new Intl.NumberFormat(currentCurrency === 'MXN' ? 'es-MX' : 'en-US', {
@@ -505,8 +641,7 @@ exportWppBtn.addEventListener('click', () => {
     window.open(url, '_blank');
 });
 
-// Lógica de API GROQ
-const GROQ_API_KEY = "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";
+// Lógica de API GROQ (via Vercel Serverless Proxy)
 
 btnGenerateAI.addEventListener('click', async () => {
     const prompt = aiPromptInput.value.trim();
@@ -518,7 +653,7 @@ btnGenerateAI.addEventListener('click', async () => {
     
     // Samplear catálogo
     const maxItems = 150; 
-    const sample = catalogData.slice(0, maxItems).map(i => `ID:${i.id} | Name:${i.name} | Price:${i.price}`).join('\n');
+    const sample = catalogData.slice(0, maxItems).map(i => `ID:${i.id} | Name:${i.name} | Impl:${i.priceImpl} | Mens:${i.priceMens}`).join('\n');
     
     const sysPrompt = `Eres el Asistente Inteligente de Matilde 360, una agencia de marketing de alta especialidad. 
 A partir del catálogo de servicios que recibes, crea una propuesta comercial recomendada según lo pedido por el usuario.
@@ -534,10 +669,9 @@ Regla vital: Responde ESTRICTAMENTE en formato JSON plano con la siguiente estru
 Nada de explicaciones, saludos ni preámbulos. Si no encuentras nada coherente, devuelve [].`;
 
     try {
-        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        const response = await fetch("/api/groq", {
             method: "POST",
             headers: {
-                "Authorization": `Bearer ${GROQ_API_KEY}`,
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
@@ -579,7 +713,10 @@ Nada de explicaciones, saludos ni preámbulos. Si no encuentras nada coherente, 
                 card.innerHTML = `
                     <span class="prod-code" style="color:#00ff88; margin-bottom: 5px; display:inline-block;"><i class="ph-fill ph-check-circle"></i> Result IA</span>
                     <div class="prod-name" style="margin-top:5px;">${item.name}</div>
-                    <div class="prod-price">${formatCurrency(item.price)}</div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 10px; font-size:0.85rem;">
+                        <div>Impl: <span class="neon-text">${formatCurrency(item.priceImpl)}</span></div>
+                        <div>Mensual: <span class="neon-text">${formatCurrency(item.priceMens)}</span></div>
+                    </div>
                     <button class="add-btn" onclick="addToQuote('${item.id}')">
                         <i class="ph ph-plus-circle"></i> Añadir extra manual
                     </button>

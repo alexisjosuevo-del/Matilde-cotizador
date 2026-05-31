@@ -70,6 +70,12 @@
                 <div class="catalog-area">
                     <h3 id="catalogTitle">Catálogo Disponible</h3>
                     
+                    <!-- Pestañas de Navegación -->
+                    <div class="catalog-tabs" style="display:flex; gap: 10px; margin-bottom: 15px;" id="catalogTabsContainer">
+                        <button id="tabServicios" class="cyber-btn active" style="flex:1;">Servicios</button>
+                        <button id="tabPaquetes" class="cyber-btn" style="flex:1; opacity: 0.6;">Paquetes</button>
+                    </div>
+                    
                     <!-- AI MODE INPUT -->
                     <div id="aiPromptArea" class="ai-prompt-area hidden">
                         <textarea id="aiPromptInput" class="cyber-input" placeholder="Describe lo que necesitas cotizar. Ejemplo: 'Necesito armar una sala de juntas elegante con 8 sillas y mesa con presupuesto moderado'" rows="4"></textarea>
@@ -82,6 +88,10 @@
                     <div class="ai-analysis-indicator hidden" id="aiIndicator">
                         <div class="spinner"></div> Analizando intención de búsqueda...
                     </div>
+                    
+                    <!-- Filtros de Categoría -->
+                    <div id="categoryFilters" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:15px;"></div>
+                    
                     <div class="catalog-list" id="catalogList">
                         <!-- Items dinámicos -->
                     </div>

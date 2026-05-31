@@ -1,0 +1,37 @@
+{
+    "version": 2,
+    "builds": [
+        {
+            "src": "api/**/*.js",
+            "use": "@vercel/node"
+        },
+        {
+            "src": "index.html",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "cotizador.js",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "cotizador.css",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "logo-matilde.png",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "Matilde360.xlsx",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "Futuristic_Medical_Marketing_Video_Generated.mp4",
+            "use": "@vercel/static"
+        }
+    ],
+    "routes": [
+        { "src": "/api/(.*)", "dest": "/api/$1" },
+        { "src": "/(.*)", "dest": "/$1" }
+    ]
+}

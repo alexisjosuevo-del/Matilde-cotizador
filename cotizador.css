@@ -850,6 +850,61 @@ h1.glitch {
     .quote-sidebar { position: static; max-height: none; }
 }
 
+/* Category Filter Chips */
+.category-chip {
+    padding: 7px 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(43, 56, 143, 0.15);
+    background: var(--bg-white);
+    color: var(--text-muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    white-space: nowrap;
+}
+
+.category-chip:hover {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+}
+
+.category-chip.active {
+    background: var(--accent-blue);
+    color: #fff;
+    border-color: var(--accent-blue);
+    box-shadow: 0 2px 10px rgba(43, 56, 143, 0.25);
+}
+
+/* Price Type Selector Buttons (Cart) */
+.price-type-btn {
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(0,0,0,0.1);
+    background: var(--bg-light);
+    color: var(--text-muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+    text-align: center;
+}
+
+.price-type-btn:hover {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+}
+
+.price-type-btn.active {
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 2px 8px rgba(0, 193, 212, 0.3);
+}
+
  / *   A I   M o d e   O v e r l a y   * / 
  . m o d e - s e l e c t i o n - o v e r l a y   { 
          p o s i t i o n :   f i x e d ; 
