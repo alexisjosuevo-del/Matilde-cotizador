@@ -39,6 +39,37 @@ let currentCurrency = 'MXN';
 let selectedCategory = 'Todas';
 const EXCHANGE_RATE = 15.0; // Factor de conversión a USD
 
+// Servicio especial: subitems incluidos automáticamente
+const DISENO_IMPRESION_NAME = 'Diseño material gráfico para impresión';
+const INCLUDED_SUBITEMS = [
+    {
+        id: 'INCLUDED-RONDAS',
+        name: 'Rondas de Ajustes',
+        description: '3 rondas de correcciones por tarjetón ya incluidas en el precio',
+        category: 'Branding & Diseño',
+        modality: 'Incluido',
+        priceImpl: 0,
+        priceMens: 0,
+        type: 'servicio',
+        isIncluded: true,
+        parentId: null,
+        searchString: 'rondas de ajustes incluido'
+    },
+    {
+        id: 'INCLUDED-ARCHIVOS',
+        name: 'Archivos Finales',
+        description: 'Entrega de archivos listos para impresión (PDF, .ai, .eps) + editables',
+        category: 'Branding & Diseño',
+        modality: 'Incluido',
+        priceImpl: 0,
+        priceMens: 0,
+        type: 'servicio',
+        isIncluded: true,
+        parentId: null,
+        searchString: 'archivos finales incluido'
+    }
+];
+
 // Precargar Logo PDF
 const logoImage = new Image();
 logoImage.src = 'logo-matilde.png';
@@ -292,6 +323,16 @@ window.addToQuote = function(id) {
         else defaultPrice = 'impl';
         
         shoppingCart.push({ ...item, qty: 1, selectedPrice: defaultPrice });
+
+        // Si es el servicio de diseño para impresión, agregar subitems automáticamente
+        if (item.name === DISENO_IMPRESION_NAME) {
+            INCLUDED_SUBITEMS.forEach(subItem => {
+                const alreadyIn = shoppingCart.find(p => p.id === subItem.id);
+                if (!alreadyIn) {
+                    shoppingCart.push({ ...subItem, qty: 1, selectedPrice: 'impl', parentId: id });
+                }
+            });
+        }
     }
     
     renderCart();
@@ -318,6 +359,12 @@ window.updateQty = function(id, delta) {
 }
 
 window.removeFromQuote = function(id) {
+    // Si se elimina el servicio de diseño para impresión, también eliminar subitems incluidos
+    const item = shoppingCart.find(p => p.id === id);
+    if (item && item.name === DISENO_IMPRESION_NAME) {
+        const subIds = INCLUDED_SUBITEMS.map(s => s.id);
+        shoppingCart = shoppingCart.filter(p => !subIds.includes(p.id));
+    }
     shoppingCart = shoppingCart.filter(p => p.id !== id);
     renderCart();
 }
@@ -331,7 +378,8 @@ function getItemActivePrice(item) {
 function renderCart() {
     quoteItemsContainer.innerHTML = '';
     
-    if (shoppingCart.length === 0) {
+    const realItems = shoppingCart.filter(i => !i.isIncluded);
+    if (realItems.length === 0) {
         quoteItemsContainer.innerHTML = '<div class="empty-quote">No hay productos en la cotización</div>';
         quoteSummary.classList.add('hidden');
         exportQuoteBtn.classList.add('hidden');
@@ -347,6 +395,24 @@ function renderCart() {
     let subtotal = 0;
 
     shoppingCart.forEach(item => {
+        // Los subitems incluidos no suman al total
+        if (item.isIncluded) {
+            const el = document.createElement('div');
+            el.className = 'cart-item cart-item-included';
+            el.style.cssText = 'border-left: 3px solid #00c17a; background: rgba(0,193,122,0.06); margin-left: 12px; padding: 8px 12px; border-radius: 6px; margin-bottom: 6px;';
+            el.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-size:0.82rem; font-weight:600; color:var(--text-main);"><i class="ph-fill ph-check-circle" style="color:#00c17a; margin-right:4px;"></i>${item.name}</div>
+                        <div style="font-size:0.72rem; color:var(--text-muted); margin-top:2px;">${item.description}</div>
+                    </div>
+                    <span style="font-size:0.78rem; font-weight:700; color:#00c17a; background:rgba(0,193,122,0.15); border:1px solid rgba(0,193,122,0.4); border-radius:4px; padding:2px 8px; white-space:nowrap;">✓ Incluido</span>
+                </div>
+            `;
+            fragment.appendChild(el);
+            return;
+        }
+
         const activePrice = getItemActivePrice(item);
         const itemTotal = activePrice * item.qty;
         subtotal += itemTotal;
@@ -524,6 +590,17 @@ function generatePDF() {
     const tableRows = [];
 
     shoppingCart.forEach(item => {
+        if (item.isIncluded) {
+            tableRows.push([
+                '',
+                '   >> ' + item.name.substring(0, 38),
+                '',
+                'Incluido',
+                'Incluido',
+                'Incluido'
+            ]);
+            return;
+        }
         const activePrice = getItemActivePrice(item);
         const itemTotal = activePrice * item.qty;
         const priceLabel = item.selectedPrice === 'mens' ? 'Mensualidad' : 'Implementación';
@@ -546,7 +623,14 @@ function generatePDF() {
         startY: startY,
         theme: 'grid',
         headStyles: { fillColor: [43, 56, 143], textColor: [0, 193, 212] },
-        styles: { fontSize: 9 }
+        styles: { fontSize: 9 },
+        didParseCell: function (data) {
+            if (data.section === 'body' && data.row.raw[3] === 'Incluido') {
+                data.cell.styles.textColor = [0, 150, 100];
+                data.cell.styles.fontStyle = 'italic';
+                data.cell.styles.fillColor = [240, 255, 248];
+            }
+        }
     });
 
     const finalY = doc.lastAutoTable.finalY || startY;
@@ -622,6 +706,10 @@ exportWppBtn.addEventListener('click', () => {
     
     let text = `*Cotización Matilde 360*\nCliente: ${cName}\nElaborado por: ${aName}\nMoneda: ${currentCurrency}\n\n`;
     shoppingCart.forEach(i => {
+        if (i.isIncluded) {
+            text += `   ✓ ${i.name} (Incluido)\n`;
+            return;
+        }
         const activePrice = getItemActivePrice(i);
         const itemTotal = activePrice * i.qty;
         let finalVal = currentCurrency === 'USD' ? (itemTotal / EXCHANGE_RATE) : itemTotal;
