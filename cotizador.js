@@ -661,8 +661,9 @@ function generatePDF() {
         
         doc.setFont("helvetica", "bold");
         doc.setTextColor(0, 0, 0);
-        doc.text(`${item.name} (${item.category})`, 14, descY);
-        descY += 6;
+        const splitTitle = doc.splitTextToSize(`${item.name} (${item.category})`, 180);
+        doc.text(splitTitle, 14, descY);
+        descY += (splitTitle.length * 6);
         
         doc.setFont("helvetica", "normal");
         doc.setTextColor(100, 100, 100);
