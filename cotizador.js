@@ -593,7 +593,7 @@ function generatePDF() {
         if (item.isIncluded) {
             tableRows.push([
                 '',
-                '   >> ' + item.name.substring(0, 38),
+                '   >> ' + item.name.substring(0, 100),
                 '',
                 'Incluido',
                 'Incluido',
@@ -606,7 +606,7 @@ function generatePDF() {
         const priceLabel = item.selectedPrice === 'mens' ? 'Mensualidad' : 'Implementación';
         tableRows.push([
             item.id,
-            item.name.substring(0, 40),
+            item.name.substring(0, 120),
             item.qty.toString(),
             priceLabel,
             formatCurrency(activePrice),
@@ -718,7 +718,7 @@ exportWppBtn.addEventListener('click', () => {
             style: 'currency', currency: currentCurrency, minimumFractionDigits: 0, maximumFractionDigits: 0
         }).format(finalVal);
         
-        text += `- ${i.qty}x ${i.name.substring(0, 30)}... (${priceStr})\n`;
+        text += `- ${i.qty}x ${i.name.substring(0, 100)}... (${priceStr})\n`;
     });
     
     text += `\n*Subtotal:* ${subtotalVal.innerText}`;
